@@ -7,7 +7,7 @@ performing the statistical analyses, and generating figures. Figures were then a
 svg files. Small changes were made to the svg files using Inkscape (https://inkscape.org/).
 
 Figures 1 and S2-S3 use the raw data in the folder Figure1_data. Figures 3 and S4-S7 use the raw data in Figure3_data. 
-Figure 5B uses the raw data in the folder Figure5B_data.
+Figure 5B uses the raw data in the folder Figure5B_data. Figure 6 uses the Prism files.
 
 In all files, if values in the .Start and .End columns are not the same, columns ending in .Start are the lower limit
 for unknown values and columns ending in .End are the upper limit. 147 mM was chosen as the upper limit for blood glucose
