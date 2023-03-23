@@ -164,7 +164,7 @@ GSIStab$Weeks<-sapply(GSIStab$Factor,function(f) unique(GSIS$Weeks[GSIS$Factor==
 
 ###### Percentages of immune cells in blood ######
 blood$Group<-sapply(blood$AnimalID,function(a){Mice$Group[Mice$AnimalID==a]})
-blood$Group <- factor(blood$Group, levels = levels(weekly_monitoring$Group)) #,"S5","S6"
+blood$Group <- factor(blood$Group, levels = levels(weekly_monitoring$Group))
 blood<-blood[order(blood$Group,blood$AnimalID),]
 
 blood$TransplantDays <- sapply(1:nrow(blood),function(i){
@@ -284,6 +284,37 @@ bloodTab_counts$TransplantDays<-sapply(bloodTab_counts$Factor,function(f) unique
 #Figure 1D is a subset of the same data as Figure 1E, so we did not analyze the same data
 #in two separate ways
 
+GSIS$AnimalID<-as.character(GSIS$AnimalID)
+
+Total_CP<-GSIS%>%as_tibble()%>%
+  group_by(AnimalID,InjDays)%>%summarise(TotalCP=sum(CP.End))
+
+Total_CP$Group<-sapply(Total_CP$AnimalID,function(a){
+  Mice$Group[Mice$AnimalID==a]})
+
+Total_CP<-Total_CP[Total_CP$Group!="PBS"&Total_CP$InjDays>1,]
+
+Total_CP$Rejected<-case_when(Total_CP$TotalCP<=(45*2/0.8)&Total_CP$Group!="CAR-D19-hi"~1, #Total of limit of detection at 2 time points
+                             Total_CP$TotalCP<=(45*3/0.8)&Total_CP$Group=="CAR-D19-hi"~1, #Total of limit of detection at 3 time points
+                             TRUE~0)
+
+sumsSurv<-tibble("AnimalID"=unique(Total_CP$AnimalID),
+                 "Time"=sapply(unique(Total_CP$AnimalID),function(id) {
+                   fifelse(sum(Total_CP$Rejected[Total_CP$AnimalID==id])>0,
+                           min(Total_CP$InjDays[Total_CP$AnimalID==id&
+                                                  Total_CP$Rejected==1]), 
+                           13)}),
+                 "Rejected"=sapply(unique(Total_CP$AnimalID),function(id) {
+                   case_when(sum(Total_CP$Rejected[Total_CP$AnimalID==id])>0~1,
+                             sum(Total_CP$Rejected[Total_CP$AnimalID==id])==0~0)}),
+                 "Group"=unique(Total_CP$AnimalID) %>% 
+                   map_chr(function(id) unique(Total_CP$Group[Total_CP$AnimalID==id])))
+sumsSurv$Time[sumsSurv$Group=="CAR-D19-hi"]<-9
+
+sumsSurv$Group<-factor(sumsSurv$Group,levels = c("PBMC","CAR-D5-lo",
+                                                 "CAR-D5-hi",
+                                                 "CAR-D19-hi"))
+
 #Figure 1E
 pairwise_survdiff(Surv(time=Time, event=Rejected,type="right") ~ Group,
                   data = sumsSurv, p.adjust.method = "BH",
@@ -296,13 +327,18 @@ blood<-blood%>%filter(rowSums(blood[,3:6],na.rm=T)>0)%>%
   mutate(InjStage=case_when(InjDays%in%c(9,13)~"Early",
                             InjDays==16~"End"))
 
+blood2<-blood
+
+blood2%>%dplyr::filter(AnimalID=="CRISPR01M.02")
+blood%>%dplyr::filter(AnimalID=="CRISPR01M.02")
+
 mod1<-lm(Value~Parameter*Group*InjStage,
          data=blood%>%
            filter(InjDays>3)%>%
            filter(Group!="PBS")%>%
            mutate(InjStage=case_when(InjDays%in%c(9,13)~"Early",
                                      InjDays==16~"End"))%>%
-           pivot_longer(-c(AnimalID,Date,Species,Group,
+           pivot_longer(-c(AnimalID,Date,Group,
                            TransplantDays,Factor,CP,InjDays,InjStage),
                         names_to="Parameter",
                         values_to = "Value"))
@@ -391,7 +427,7 @@ Fig1B<-ggplot(weekly_monitoring[!is.na(weekly_monitoring$BW),]%>%
   geom_ribbon(aes(y=BW.Median,ymin = BW.LQ,ymax = BW.UQ, fill = Group),
               data=weeklyTab[!is.na(weeklyTab$BW.Median),]%>%
                 filter(Days>-7),alpha=0.2)+ 
-  geom_line(aes(group=AnimalID,colour=Group),linetype=2,size=0.3,alpha=0.6)+ 
+  geom_line(aes(group=AnimalID,colour=Group),linetype=2,linewidth=0.3,alpha=0.6)+ 
   geom_line(aes(y=BW.Median,colour = Group,group=Group), 
             data=weeklyTab[!is.na(weeklyTab$BW.Median),]%>%
               filter(Days>-7),size=0.5,alpha=0.8)+
@@ -427,10 +463,10 @@ Fig1C<-ggplot(weekly_monitoring[!is.na(weekly_monitoring$BG),]%>%
   geom_ribbon(aes(y=BG.Median,ymin = BG.LQ,ymax = BG.UQ,fill=Group), 
               data=weeklyTab[!is.na(weeklyTab$BG.Median),]%>%
                 filter(Days>-7),alpha=0.2)+
-  geom_line(aes(group=AnimalID,colour=Group),linetype=2,size=0.3,alpha=0.6)+ 
+  geom_line(aes(group=AnimalID,colour=Group),linetype=2,linewidth=0.3,alpha=0.6)+ 
   geom_line(aes(y=BG.Median,colour = Group,group=Group), #
             data=weeklyTab[!is.na(weeklyTab$BG.Median),]%>%
-              filter(Days>-7),size=0.5,alpha=0.8)+
+              filter(Days>-7),linewidth=0.5,alpha=0.8)+
   geom_point(aes(y=BG.Median,colour = Group,group=Group,shape=Group,fill=Group), 
              data=weeklyTab[!is.na(weeklyTab$BG.Median),]%>%
                filter(Days>-7),size=1,alpha=0.8)+
@@ -509,36 +545,6 @@ Fig1D<-ggplot(GSIS%>%filter(Time==30)%>%filter(!Group%in%c("PBS")),
 Fig1D
 
 ###### Figure 1E ######
-GSIS$AnimalID<-as.character(GSIS$AnimalID)
-
-Total_CP<-GSIS%>%as_tibble()%>%
-  group_by(AnimalID,InjDays)%>%summarise(TotalCP=sum(CP.End))
-
-Total_CP$Group<-sapply(Total_CP$AnimalID,function(a){
-  Mice$Group[Mice$AnimalID==a]})
-
-Total_CP<-Total_CP[Total_CP$Group!="PBS"&Total_CP$InjDays>1,]
-
-Total_CP$Rejected<-case_when(Total_CP$TotalCP<=(45*2/0.8)&Total_CP$Group!="CAR-D19-hi"~1, #Total of limit of detection at 2 time points
-                             Total_CP$TotalCP<=(45*3/0.8)&Total_CP$Group=="CAR-D19-hi"~1, #Total of limit of detection at 3 time points
-                             TRUE~0)
-
-sumsSurv<-tibble("AnimalID"=unique(Total_CP$AnimalID),
-                 "Time"=sapply(unique(Total_CP$AnimalID),function(id) {
-                   fifelse(sum(Total_CP$Rejected[Total_CP$AnimalID==id])>0,
-                           min(Total_CP$InjDays[Total_CP$AnimalID==id&
-                                                  Total_CP$Rejected==1]), 
-                           13)}),
-                 "Rejected"=sapply(unique(Total_CP$AnimalID),function(id) {
-                   case_when(sum(Total_CP$Rejected[Total_CP$AnimalID==id])>0~1,
-                             sum(Total_CP$Rejected[Total_CP$AnimalID==id])==0~0)}),
-                 "Group"=unique(Total_CP$AnimalID) %>% 
-                   map_chr(function(id) unique(Total_CP$Group[Total_CP$AnimalID==id])))
-sumsSurv$Time[sumsSurv$Group=="CAR-D19-hi"]<-9
-
-sumsSurv$Group<-factor(sumsSurv$Group,levels = c("PBMC","CAR-D5-lo",
-                                                 "CAR-D5-hi",
-                                                 "CAR-D19-hi"))
 fit <- survfit(Surv(time=Time, event=Rejected,type="right") ~ Group,
                data = sumsSurv)
 
@@ -620,7 +626,7 @@ my_labeller = as_labeller(
     `CAR-D19-hi` = "`A2-CAR`^hi*`-D19`"), 
   default = label_parsed)
 ylab=expression(paste("Percent Myc"^{"+"}," of huCD45"^{"+"}," in Blood (%)"))
-p_MycCD45<-ggplot(blood%>%
+Fig1G<-ggplot(blood%>%
                     filter(Group!="PBS",
                            InjDays>3,!is.na(percent_Mycpos_hCD45pos))%>%
                     mutate(InjStage=case_when(InjDays%in%c(9,13)~"Early",
@@ -746,7 +752,7 @@ Fig1I
 #use Fig1B as a placeholder for the schematic; edit in Inkscape
 (Figure1<-((Fig1B+ theme(legend.position = "None")) | plot_spacer() |((Fig1B+ theme(legend.position = "None"))/  
                                                                          (Fig1C+theme(legend.position = "None")))) /
-    ((Fig1D+ theme(legend.position = "None"))|
+    ((Fig1D)|
        (Fig1E$plot+theme(axis.text.x = element_text(family = "Arial",color="black",size=12),
                               axis.text.y = element_text(family = "Arial",color="black",size=12),
                               axis.title.x = element_text(family = "Arial",color="black",size=12),

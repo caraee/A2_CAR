@@ -17,16 +17,16 @@ library("gghalves")
 library("broom.mixed") 
 
 #### Load data ####
-weekly_monitoring<-read.table("Fig3_weekly_monitoring.txt",sep="\t",stringsAsFactors = F, 
+weekly_monitoring<-read.table("./Figure3_data/Fig3_weekly_monitoring.txt",sep="\t",stringsAsFactors = F, 
                               header=T, check.names=F,as.is=T)
-GSIS<-read.table("Fig3_GSIS.txt",sep="\t",stringsAsFactors = F, 
+GSIS<-read.table("./Figure3_data/Fig3_GSIS.txt",sep="\t",stringsAsFactors = F, 
                  header=T, check.names=F,as.is=T)
-Mice<-read.table("Fig3_animalTable.txt",sep="\t",stringsAsFactors = F, 
+Mice<-read.table("./Figure3_data/Fig3_animalTable.txt",sep="\t",stringsAsFactors = F, 
                  header=T, check.names=F,as.is=T)
-blood<-read.table("Fig3_blood_percentages.txt",sep="\t",stringsAsFactors = F, 
+blood<-read.table("./Figure3_data/Fig3_blood_percentages.txt",sep="\t",stringsAsFactors = F, 
                   header=T, check.names=F,as.is=T)
-blood_cell_counts<-read_delim("Fig3_blood_cell_counts.txt", name_repair = "universal")
-randomFed<-read.table("Fig3_randomFed.txt",sep="\t",stringsAsFactors = F, 
+blood_cell_counts<-read_delim("./Figure3_data/Fig3_blood_cell_counts.txt", name_repair = "universal")
+randomFed<-read.table("./Figure3_data/Fig3_randomFed.txt",sep="\t",stringsAsFactors = F, 
                       header=T, check.names=F,as.is=T)
 
 GroupPalette<-c("#89adc5", #light grey-blue
@@ -487,6 +487,8 @@ cd45_res_tab_counts<-rbind(hypothesis(CD45mod_slope_counts,"exp(Intercept+GroupC
                                exp(Intercept)>0")$hypothesis,
                       hypothesis(CD45mod_slope_counts,"exp(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
                       exp(Intercept+InjStage3)>0")$hypothesis,
+                      hypothesis(CD45mod_slope_counts,"exp(Intercept+GroupCARmed_PBMClo)-
+                               exp(Intercept+GroupCARmed)>0")$hypothesis,
                       hypothesis(CD45mod_slope_counts,"exp(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)-
                                exp(Intercept+InjStage3+GroupCARmed+InjStage3:GroupCARmed)>0")$hypothesis,
                       hypothesis(CD45mod_slope_counts,"exp(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)-
@@ -497,6 +499,8 @@ cd45_res_tab_counts<-rbind(hypothesis(CD45mod_slope_counts,"exp(Intercept+GroupC
                                exp(Intercept+InjStage6+GroupCARmed+InjStage6:GroupCARmed)>0")$hypothesis,
                       hypothesis(CD45mod_slope_counts,"exp(Intercept+InjStage9+GroupCARmed_PBMClo+InjStage9:GroupCARmed_PBMClo)-
                                exp(Intercept+InjStage9+GroupCARmed+InjStage9:GroupCARmed)>0")$hypothesis,
+                      hypothesis(CD45mod_slope_counts,"exp(Intercept+GroupCARmed_PBMClo)-
+                               exp(Intercept)>0")$hypothesis,
                       hypothesis(CD45mod_slope_counts,"exp(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)-
                                exp(Intercept+InjStage3)>0")$hypothesis,
                       hypothesis(CD45mod_slope_counts,"exp(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)-
@@ -512,19 +516,20 @@ cd45_res_tab_counts<-rbind(hypothesis(CD45mod_slope_counts,"exp(Intercept+GroupC
 MycCD45mod_counts_ZIP <- brm(normal.count_Mycpos_hCD45pos~InjStage*Group+(InjStage|AnimalID),
                              data=blood_cell_counts%>%
                                mutate(InjStage=factor(InjWeeks),
-                                      normal.count_Mycpos_hCD45pos=round(normal.count_Mycpos_hCD45pos))%>%
+                                      normal.count_Mycpos_hCD45pos=round(normal.count_Mycpos_hCD45pos,digits=0))%>%
                                filter(Group%in%c("CARhi","CARmed_PBMChi",
                                                  "CARmed_PBMClo"),
                                       InjDays>6,!is.na(normal.count_Mycpos_hCD45pos)),
-                             prior=c(set_prior("normal(0,5)", class = "Intercept"),
-                                     set_prior("normal(-5,5)", class = "b")),
+                             prior=c(set_prior("normal(-5,5)", class = "b")),
                              iter=8000,
                              warmup=1000,
                              family="zero_inflated_poisson",
-                             control = list(adapt_delta=0.99),
+                             control = list(adapt_delta=0.99,
+                                            max_treedepth=12),
                              #chains=1,
                              backend = "cmdstanr",
-                             threads = threading(parallel::detectCores()),
+                             cores = 4,
+                             threads = threading(2),
                              silent=1,
                              save_pars = save_pars(all = TRUE))
 
@@ -581,10 +586,11 @@ CD4MycCD45mod_counts_ZIP <- brm(normal.count_CD4pos.of.CD45posMycpos~InjStage*Gr
                                                max_treedepth=12),
                                 #chains=1,
                                 backend = "cmdstanr",
-                                threads = threading(parallel::detectCores()),
+                                cores = 4,
+                                threads = threading(2),
                                 silent=0,
                                 save_pars = save_pars(all = TRUE))
-#super small number of divergent counts (35 of 28,000), but ESS and Rhats are perfect, so ignore
+#small number of divergent counts (23 of 28,000), but ESS and Rhats are perfect, so ignore
 
 CD4MycCD45_res_tab_counts<-rbind(hypothesis(CD4MycCD45mod_counts_ZIP,"exp(Intercept+GroupCARmed_PBMChi)-
                                exp(Intercept)>0")$hypothesis,
@@ -592,7 +598,6 @@ CD4MycCD45_res_tab_counts<-rbind(hypothesis(CD4MycCD45mod_counts_ZIP,"exp(Interc
                       exp(Intercept+InjStage3)>0")$hypothesis)
 
 #Fig S7D
-#works up until here
 CD8MycCD45mod_counts_ZIP <- brm(normal.count_CD8pos.of.CD45posMycpos~InjStage*Group+(InjStage|AnimalID),
                                 data=blood_cell_counts%>%
                                   mutate(InjStage=factor(InjWeeks),
@@ -610,14 +615,15 @@ CD8MycCD45mod_counts_ZIP <- brm(normal.count_CD8pos.of.CD45posMycpos~InjStage*Gr
                                                max_treedepth=12),
                                 #chains=1,
                                 backend = "cmdstanr",
-                                threads = threading(parallel::detectCores()),
+                                cores = 4,
+                                threads = threading(2),
                                 silent=0,
                                 save_pars = save_pars(all = TRUE))
 
-CD8MycCD45_res_tab_counts<-rbind(hypothesis(CD8MycCD45mod_counts_ZIP,"(Intercept+GroupCARmed_PBMChi)-
-                               (Intercept)>0")$hypothesis,
-                               hypothesis(CD8MycCD45mod_counts_ZIP,"(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
-                      (Intercept+InjStage3)>0")$hypothesis)
+CD8MycCD45_res_tab_counts<-rbind(hypothesis(CD8MycCD45mod_counts_ZIP,"exp(Intercept+GroupCARmed_PBMChi)-
+                               exp(Intercept)>0")$hypothesis,
+                               hypothesis(CD8MycCD45mod_counts_ZIP,"exp(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
+                      exp(Intercept+InjStage3)>0")$hypothesis)
 
 #### Figures ####
 ###### Figure S4A #####
@@ -641,30 +647,30 @@ my_labeller = as_labeller(
     `CARmed_PBMChi` = "`A2-CAR`^med*PBMC^hi"), 
   default = label_parsed)
 
-FigS4A<-ggplot(GSIS[GSIS$Delivery==f&GSIS$Time%in%breaks,],
+FigS4A<-ggplot(GSIS[GSIS$Time%in%breaks,],
               aes(x=Time,y=BG.Start,colour=Group,group=Group,fill=Group))+
   facet_grid(Group~InjWeeks,scales = "free_y",
              labeller=my_labeller)+
   geom_point(aes(x=Time,y=BG.Median,shape=Group),
-             data=GSIStab[GSIStab$Time%in%breaks&GSIStab$Delivery==f,],
-             size=1,alpha=1,position=pd) +
-  geom_line(aes(x=Time,y=BG.Median),data=GSIStab[GSIStab$Time%in%breaks&GSIStab$Delivery==f,],
-            size=0.5,alpha=1,position=pd) +
+             data=GSIStab[GSIStab$Time%in%breaks,],
+             size=1,alpha=1) +
+  geom_line(aes(x=Time,y=BG.Median),data=GSIStab[GSIStab$Time%in%breaks,],
+            linewidth=0.5,alpha=1) +
   geom_linerange(aes(ymin=BG.Start,ymax=BG.End,group=AnimalID),
-                 linetype=3,position=pd,
-                 size=0.3,alpha=0.8)+
+                 linetype=3,
+                 linewidth=0.3,alpha=0.8)+
   scale_fill_manual(values=GroupPalette)+
   scale_color_manual(values=GroupPalette)+
   scale_shape_manual(name="Group", values=GroupShapes)+
-  geom_line(aes(colour=Group,group=AnimalID),position=pd,linetype=2,alpha=0.5)+
+  geom_line(aes(colour=Group,group=AnimalID),linetype=2,alpha=0.5)+
   labs(x="Time (minutes)",y="Blood Glucose (mM)")+
   geom_hline(data=data.frame(yint = 33.3,Species="Mouse"),aes(yintercept=yint),colour="#666666",linetype=3)+
   scale_y_continuous(limits=c(0, 35),breaks=c(0,10,20,30))+
   scale_x_continuous(breaks = breaks)+
   geom_ribbon(aes(x=Time,y=BG.Median,
                   ymin = BG.LQ, ymax = BG.UQ,fill=Group),colour=NA,
-              data=GSIStab[GSIStab$Time%in%breaks&GSIStab$Weeks!=8&GSIStab$Delivery==f,],
-              size=0.5,alpha=0.2)+
+              data=GSIStab[GSIStab$Time%in%breaks&GSIStab$Weeks!=8,],
+              linewidth=0.5,alpha=0.2)+
   theme(legend.position = c(0.5,0.10))+
   theme(axis.title = element_text(family = "Arial", color="black", size=12),
         axis.ticks = element_line(colour="black"))+
@@ -709,19 +715,19 @@ FigS4B<-ggplot(GSIS[GSIS$Time%in%breaks,],
                      aes(x=Time,y=CP.End/3020.29,colour=Group,group=Group,fill=Group))+
   facet_grid(Group~InjWeeks,scales = "free",labeller = my_labeller)+
   geom_point(aes(x=Time,y=CP.Median/3020.29,shape=Group),data=GSIStab,
-             size=1,alpha=1,position=pd) +
+             size=1,alpha=1) +
   geom_line(aes(x=Time,y=CP.Median/3020.29),data=GSIStab,
-            size=0.5,alpha=1,position=pd) +
+            linewidth=0.5,alpha=1) +
   geom_linerange(aes(ymin=CP.Start/3020.29,ymax=CP.End/3020.29,group=AnimalID),
-                 linetype=3,position=pd,
-                 size=0.3,alpha=0.8)+
+                 linetype=3,
+                 linewidth=0.3,alpha=0.8)+
   geom_ribbon(aes(x=Time,y=CP.Median/3020.29,ymin = CP.LQ/3020.29, ymax = CP.UQ/3020.29,
                   fill=Group),colour=NA,data=GSIStab[GSIStab$Time%in%breaks,],
-              size=0.5,alpha=0.2,position=pd)+
+              linewidth=0.5,alpha=0.2)+
   scale_fill_manual(name="Group", values=GroupPalette)+
   scale_color_manual(name="Group", values=GroupPalette)+
   scale_shape_manual(name="Group", values=GroupShapes)+
-  geom_line(aes(colour=Group,group=AnimalID),position=pd,size=0.3,linetype=2,alpha=0.5)+
+  geom_line(aes(colour=Group,group=AnimalID),linewidth=0.3,linetype=2,alpha=0.5)+
   labs(x="Time (minutes)",y="Human C-peptide (nM)")+
   geom_hline(yintercept = 4.5*5/3020.29,linetype=3,alpha=0.7)+
   scale_x_continuous(limits=limits,breaks = breaks)+
@@ -749,7 +755,7 @@ FigS5<-ggplot(randomFed,
                     aes(x=InjWeeks,y=CP.End/3020.29,colour=Group,group=Group,fill=Group))+
   geom_point(aes(shape=Group),size=1,alpha=0.5)+
   geom_linerange(aes(ymin=CP.Start/3020.29,ymax=CP.End/3020.29,group=AnimalID),
-                 linetype=3,size=0.3,alpha=0.8)+
+                 linetype=3,linewidth=0.3,alpha=0.8)+
   scale_fill_manual(name="Group", values=GroupPalette,
                     labels=c("PBS",
                              bquote("A2-CAR"^lo),
@@ -771,7 +777,7 @@ FigS5<-ggplot(randomFed,
                               bquote("A2-CAR"^hi),
                               bquote("A2-CAR"^med*" PBMC"^lo),
                               bquote("A2-CAR"^med*" PBMC"^hi)))+
-  geom_line(aes(colour=Group,group=AnimalID),size=0.8,linetype=1,alpha=0.8)+
+  geom_line(aes(colour=Group,group=AnimalID),linewidth=0.8,linetype=1,alpha=0.8)+
   labs(x="Weeks Post-A2-CAR T Cell Injection",y="Human C-peptide (nM)")+
   geom_hline(yintercept = 4.5*5/3020.29,linetype=3,alpha=0.7)+
   scale_x_continuous(breaks=unique(randomFed$InjWeeks))+
@@ -792,6 +798,22 @@ FigS5<-ggplot(randomFed,
 FigS5
 
 ###### Figure S6A #####
+CD45mod_slope_zib <- brm(percent_CD45pos~InjStage*Group+(InjStage|AnimalID),
+                         data=blood%>%
+                           mutate(InjStage=factor(InjWeeks),
+                                  percent_CD45pos=percent_CD45pos/100)%>%
+                           filter(Group!="PBS",InjDays>0,!is.na(percent_CD45pos)),
+                         prior=c(set_prior("normal(-5,10)", class = "b")),
+                         # iter=10000,
+                         # warmup=1000,
+                         family="zero_inflated_beta",
+                         control = list(adapt_delta=0.975,
+                                        max_treedepth=12),
+                         backend = "cmdstanr",
+                         cores = 4,
+                         threads = threading(parallel::detectCores()),
+                         silent=0)
+
 percentCD45_mod<-blood%>%
   filter(Group!="PBS",InjDays>0,!is.na(percent_CD45pos))%>%
   mutate(InjStage=factor(InjWeeks),
@@ -813,7 +835,7 @@ percentCD45_mod<-blood%>%
                             InjStage=="12"~12,
                             InjStage=="13"~13,
                             InjStage=="14"~14))%>%
-  add_epred_rvars(CD45mod_slope,value="percent_CD45pos",
+  add_epred_rvars(CD45mod_slope_zib,value="percent_CD45pos",
                   re_formula = NA)%>%
   filter(!(InjWeeks>3&Group=="CARmed_PBMChi"))%>%
   filter((Group!="CARhi"&InjWeeks%in%c(2,3,4,5,6,7,9,12,13))|
@@ -825,13 +847,15 @@ ylab=expression(atop("Percent huCD45"^{"+"}," Cells in Blood (%)"))
 FigS6A<-ggplot(percentCD45_mod%>%
                      filter(!(InjWeeks>3&Group=="CARmed_PBMChi")),
                    aes(x=InjWeeks,group=Group,colour=Group))+
-  stat_lineribbon(aes(dist = percent_CD45pos),alpha=0.6) +
+  stat_lineribbon(aes(dist = percent_CD45pos*100),alpha=0.6) +
   geom_line(aes(y=percent_CD45pos,
                 group=AnimalID,colour=Group),
             data=blood%>%
               filter(Group!="PBS",InjDays>0,
                      !is.na(percent_CD45pos)),
-            linetype=2,size=0.7,alpha=0.6)+
+            linetype=2,linewidth=0.7,alpha=0.6)+
+  scale_y_continuous(limits=c(0,100),
+                     breaks=pretty_breaks(n=6))+
   scale_x_continuous(limits=c(0,14),
                      breaks=pretty_breaks(n=8))+
   labs(x="Weeks Post-A2-CAR T Cell Injection",y=ylab)+
@@ -858,6 +882,24 @@ FigS6A<-ggplot(percentCD45_mod%>%
 FigS6A
 
 ###### Figure S6B #####
+MycCD45mod_noRE <- brm(percent_Mycpos_hCD45pos~InjStage*Group,
+                       data=blood%>%
+                         mutate(InjStage=factor(InjWeeks),
+                                percent_Mycpos_hCD45pos=percent_Mycpos_hCD45pos)%>%
+                         filter(Group%in%c("CARhi","CARmed_PBMChi",
+                                           "CARmed_PBMClo"),
+                                InjDays>6,!is.na(percent_Mycpos_hCD45pos)),
+                       prior=c(set_prior("normal(100,15)", class = "Intercept"),
+                               set_prior("normal(0,50)", class = "b")),
+                       iter=10000,
+                       warmup=1500,
+                       family="skew_normal",
+                       control = list(adapt_delta=0.95),
+                       backend = "cmdstanr",
+                       threads = threading(parallel::detectCores()),
+                       silent=0,
+                       save_pars = save_pars(all = TRUE))
+
 percentMycCD45_mod<-blood%>%
   filter(Group%in%c("CARhi","CARmed_PBMChi",
                     "CARmed_PBMClo"),
@@ -901,7 +943,7 @@ FigS6B<-ggplot(percentMycCD45_mod%>%
                                 "CARmed_PBMClo"),
                      InjDays>6,!is.na(percent_Mycpos_hCD45pos))%>%
               mutate(InjStage=factor(InjWeeks)),
-            linetype=2,size=0.7,alpha=0.6)+
+            linetype=2,linewidth=0.7,alpha=0.6)+
   scale_x_continuous(limits=c(0,14),
                      breaks=pretty_breaks(n=8))+
   labs(x="Weeks Post-A2-CAR T Cell Injection",y=ylab)+
@@ -926,6 +968,24 @@ FigS6B<-ggplot(percentMycCD45_mod%>%
 FigS6B
 
 ###### Figure S6C #####
+CD4MycCD45mod_noRE <- brm(percent_CD4pos_of_CD45posMycpos~InjStage*Group,
+                          data=blood%>%
+                            mutate(InjStage=factor(InjWeeks),
+                                   percent_CD4pos_of_CD45posMycpos=percent_CD4pos_of_CD45posMycpos)%>%
+                            filter(Group%in%c("CARhi","CARmed_PBMChi",
+                                              "CARmed_PBMClo"),
+                                   InjDays>6,!is.na(percent_CD4pos_of_CD45posMycpos)),
+                          prior=c(set_prior("normal(50,25)", class = "Intercept"),
+                                  set_prior("normal(0,50)", class = "b")),
+                          iter=10000,
+                          warmup=1500,
+                          family="skew_normal",
+                          control = list(adapt_delta=0.95),
+                          backend = "cmdstanr",
+                          threads = threading(parallel::detectCores()),
+                          silent=0,
+                          save_pars = save_pars(all = TRUE))
+
 percentCD4MycCD45_mod<-blood%>%
   filter(Group%in%c("CARhi","CARmed_PBMChi",
                     "CARmed_PBMClo"),
@@ -969,7 +1029,7 @@ FigS6C<-ggplot(percentCD4MycCD45_mod%>%
                                 "CARmed_PBMClo"),
                      InjDays>6,!is.na(percent_CD4pos_of_CD45posMycpos))%>%
               mutate(InjStage=factor(InjWeeks)),
-            linetype=2,size=0.7,alpha=0.6)+
+            linetype=2,linewidth=0.7,alpha=0.6)+
   scale_x_continuous(limits=c(0,14),
                      breaks=pretty_breaks(n=8))+
   labs(x="Weeks Post-A2-CAR T Cell Injection",y=ylab)+
@@ -994,6 +1054,24 @@ FigS6C<-ggplot(percentCD4MycCD45_mod%>%
 FigS6C
 
 ###### Figure S6D #####
+CD8MycCD45mod_noRE <- brm(percent_CD8pos_of_CD45posMycpos~InjStage*Group,
+                          data=blood%>%
+                            mutate(InjStage=factor(InjWeeks),
+                                   percent_CD8pos_of_CD45posMycpos=percent_CD8pos_of_CD45posMycpos)%>%
+                            filter(Group%in%c("CARhi","CARmed_PBMChi",
+                                              "CARmed_PBMClo"),
+                                   InjDays>6,!is.na(percent_CD8pos_of_CD45posMycpos)),
+                          prior=c(set_prior("normal(50,25)", class = "Intercept"),
+                                  set_prior("normal(0,50)", class = "b")),
+                          iter=10000,
+                          warmup=1500,
+                          family="skew_normal",
+                          control = list(adapt_delta=0.95),
+                          backend = "cmdstanr",
+                          threads = threading(parallel::detectCores()),
+                          silent=0,
+                          save_pars = save_pars(all = TRUE))
+
 percentCD8MycCD45_mod<-blood%>%
   filter(Group%in%c("CARhi","CARmed_PBMChi",
                     "CARmed_PBMClo"),
@@ -1037,7 +1115,7 @@ FigS6D<-ggplot(percentCD8MycCD45_mod%>%
                                 "CARmed_PBMClo"),
                      InjDays>6,!is.na(percent_CD8pos_of_CD45posMycpos))%>%
               mutate(InjStage=factor(InjWeeks)),
-            linetype=2,size=0.7,alpha=0.6)+
+            linetype=2,linewidth=0.7,alpha=0.6)+
   scale_x_continuous(limits=c(0,14),
                      breaks=pretty_breaks(n=8))+
   labs(x="Weeks Post-A2-CAR T Cell Injection",y=ylab)+
@@ -1101,7 +1179,7 @@ FigS7A<-ggplot(CD45_mod_counts%>%
             data=blood_cell_counts%>%
               filter(Group!="PBS",InjDays>0,
                      !is.na(normal.count_CD45pos)),
-            linetype=2,size=0.7,alpha=0.6)+
+            linetype=2,linewidth=0.7,alpha=0.6)+
   scale_x_continuous(breaks=unique(blood_cell_counts$InjWeeks))+
   labs(x="Weeks Post-A2-CAR T Cell Injection",y=ylab)+
   scale_fill_brewer(palette = "Greys") +
@@ -1139,7 +1217,7 @@ FigS7B<-ggplot(percentMycCD45_mod_counts%>%
                                 "CARmed_PBMClo"),
                      InjDays>6,!is.na(normal.count_Mycpos_hCD45pos))%>%
               mutate(InjStage=factor(InjWeeks)),
-            linetype=2,size=0.7,alpha=0.6)+
+            linetype=2,linewidth=0.7,alpha=0.6)+
   labs(x="Weeks Post-A2-CAR T Cell Injection",y=ylab)+
   scale_x_continuous(breaks=unique(blood_cell_counts$InjWeeks))+
   scale_fill_brewer(palette = "Greys") +
@@ -1204,7 +1282,7 @@ FigS7C<-ggplot(percentCD4MycCD45_mod_counts%>%
                                 "CARmed_PBMClo"),
                      InjDays>6,!is.na(normal.count_CD4pos.of.CD45posMycpos))%>%
               mutate(InjStage=factor(InjWeeks)),
-            linetype=2,size=0.7,alpha=0.6)+
+            linetype=2,linewidth=0.7,alpha=0.6)+
   scale_x_continuous(breaks=unique(blood_cell_counts$InjWeeks))+
   labs(x="Weeks Post-A2-CAR T Cell Injection",y=ylab)+
   scale_fill_brewer(palette = "Greys") +
@@ -1268,7 +1346,7 @@ FigS7D<-ggplot(percentCD8MycCD45_mod_counts%>%
                                 "CARmed_PBMClo"),
                      InjDays>6,!is.na(normal.count_CD8pos.of.CD45posMycpos))%>%
               mutate(InjStage=factor(InjWeeks)),
-            linetype=2,size=0.7,alpha=0.6)+
+            linetype=2,linewidth=0.7,alpha=0.6)+
   scale_x_continuous(breaks=unique(blood_cell_counts$InjWeeks))+
   labs(x="Weeks Post-A2-CAR T Cell Injection",y=ylab)+
   scale_fill_brewer(palette = "Greys") +
@@ -1317,4 +1395,108 @@ ggsave('FigureS6.svg', FigureS6, width=9, height=4.5, units = "in", dpi=600)
     plot_annotation(tag_levels = 'A') &
     theme(plot.tag = element_text(family = "Arial",color="black",size=20)))
 
-ggsave('../CRISPR02/Figures/20220824_FigureS7.svg', FigureS7, width=9, height=4.5, units = "in", dpi=600)
+ggsave('../CRISPR02/Figures/20230107_FigureS7.svg', FigureS7, width=9, height=4.5, units = "in", dpi=600)
+
+#### Supplemental Table 12 ####
+library("gt")
+cd45_res_tab_counts$CellMarker<-"CD45+"
+MycCD45_res_tab_counts$CellMarker<-"Myc+CD45+"
+CD4MycCD45_res_tab_counts$CellMarker<-"CD4+"
+CD8MycCD45_res_tab_counts$CellMarker<-"CD8+"
+
+counts_results<-bind_rows(cd45_res_tab_counts,MycCD45_res_tab_counts,CD4MycCD45_res_tab_counts,
+                          CD8MycCD45_res_tab_counts)
+
+counts_results$InjWeeks<-str_split_fixed(counts_results$Hypothesis, "InjStage",3)[,2]
+counts_results$InjWeeks<-str_split_fixed(counts_results$InjWeeks, "[+]",2)[,1]%>%as.numeric()
+counts_results$InjWeeks[is.na(counts_results$InjWeeks)]<-2
+
+counts_results$ContrGroup<-str_split_fixed(counts_results$Hypothesis, "Group",3)[,2]
+counts_results$ContrGroup<-str_split_fixed(counts_results$ContrGroup, "[+)]",2)[,1]
+
+counts_results$RefGroup<-str_split_fixed(counts_results$Hypothesis, "[-]",2)[,2]
+counts_results$RefGroup<-str_split_fixed(counts_results$RefGroup, "Group",2)[,2]
+counts_results$RefGroup<-str_split_fixed(counts_results$RefGroup, "[+)]",2)[,1]
+counts_results$RefGroup[counts_results$RefGroup==""&counts_results$CellMarker=="CD45+"]<-"CARlo"
+counts_results$RefGroup[counts_results$RefGroup==""]<-"CARmed_PBMClo"
+
+SuppTab12<-counts_results %>% select(c(Estimate,CI.Lower,CI.Upper,
+                                    Evid.Ratio,InjWeeks,RefGroup,ContrGroup,
+                                    CellMarker))%>%
+  mutate(Evid.Strength=case_when(counts_results$Evid.Ratio<=10^(1/2)~"Barely worth mentioning",
+                                 counts_results$Evid.Ratio<=10^(1)~"Substantial",
+                                 counts_results$Evid.Ratio<=10^(3/2)~"Strong",
+                                 counts_results$Evid.Ratio<=10^(2)~"Very strong",
+                                 counts_results$Evid.Ratio>10^(2)~"Decisive")) %>%
+  group_by(CellMarker) %>% 
+  arrange(InjWeeks,ContrGroup,RefGroup)%>%
+  gt() %>%
+  # row_group_order(c("Female - FP","Female - KC","Female - TC",
+  #                   "Male - FP","Male - KC", "Male - TC"))%>%
+  tab_header(title = md("Supplementary Table 12. Immune Cell Counts Compared Between Groups")) %>%
+  tab_spanner(
+    label = "Group Comparisons",
+    columns = c(ContrGroup,RefGroup)
+  )%>%
+  tab_spanner(
+    label = "95% Credibility Interval (cells)",
+    columns = c(CI.Lower,CI.Upper)
+  )%>%
+  # tab_spanner(
+  #   label = "Genotype Comparisons",
+  #   columns = c(Comp2,Comp1)
+  # )%>%
+  cols_move_to_start(
+    columns = c(ContrGroup,RefGroup,InjWeeks)
+  )%>%
+  #cols_hide(columns=c(FullGroupRef,FullGroupContr))%>%
+  cols_label(CI.Lower = "Lower Bound",
+             CI.Upper = "Upper Bound",
+             Evid.Ratio = "Evidence Ratio",
+             Evid.Strength = "Strength of Evidence",
+             RefGroup = "Reference",
+             ContrGroup = "Contrast",
+             Estimate = html("Difference (cells)"),
+             InjWeeks = "Weeks Post-Injection")%>%
+  fmt_number(
+    columns = c(Estimate,CI.Lower,CI.Upper),
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  fmt_number(
+    columns = c(Evid.Ratio),
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  # data_color( 
+  #   columns = c(RefGroup), 
+  #   colors = scales::col_factor( 
+  #     palette = GroupPalette,
+  #     domain = levels(weekly_monitoring$FullGroup)
+  #   )) %>%
+  # data_color(
+  #   columns = c(ContrGroup),
+  #   colors = scales::col_factor(
+  #     palette = GroupPalette,
+  #     domain =  levels(weekly_monitoring$FullGroup)
+#   )) %>%
+tab_source_note(md("Relates to Supplemental Figure 7.")) %>%
+  tab_style(
+    locations = cells_column_labels(columns = everything()),
+    style     = list(
+      cell_borders(sides = "bottom", weight = px(3)),
+      cell_text(weight = "bold")
+    )
+  ) %>%
+  tab_style(
+    locations = cells_title(groups = "title"),
+    style     = list(
+      cell_text(weight = "bold", size = 24)
+    )
+  ) %>%
+  tab_options(
+    table.font.style = "Arial",
+    table.font.color = "black"
+  )
+SuppTab12
+SuppTab12 %>% gtsave("SuppTab12_counts.docx")

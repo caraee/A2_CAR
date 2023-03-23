@@ -17,16 +17,16 @@ library("gghalves")
 library("broom.mixed") 
 
 #### Load data ####
-weekly_monitoring<-read.table("Fig3_weekly_monitoring.txt",sep="\t",stringsAsFactors = F, 
+weekly_monitoring<-read.table("./Figure3_data/Fig3_weekly_monitoring.txt",sep="\t",stringsAsFactors = F, 
                               header=T, check.names=F,as.is=T)
-GSIS<-read.table("Fig3_GSIS.txt",sep="\t",stringsAsFactors = F, 
+GSIS<-read.table("./Figure3_data/Fig3_GSIS.txt",sep="\t",stringsAsFactors = F, 
                  header=T, check.names=F,as.is=T)
-Mice<-read.table("Fig3_animalTable.txt",sep="\t",stringsAsFactors = F, 
+Mice<-read.table("./Figure3_data/Fig3_animalTable.txt",sep="\t",stringsAsFactors = F, 
                  header=T, check.names=F,as.is=T)
-blood<-read.table("Fig3_blood_percentages.txt",sep="\t",stringsAsFactors = F, 
+blood<-read.table("./Figure3_data/Fig3_blood_percentages.txt",sep="\t",stringsAsFactors = F, 
                   header=T, check.names=F,as.is=T)
-blood_cell_counts<-read_delim("Fig3_blood_cell_counts.txt", name_repair = "universal")
-randomFed<-read.table("Fig3_randomFed.txt",sep="\t",stringsAsFactors = F, 
+blood_cell_counts<-read_delim("./Figure3_data/Fig3_blood_cell_counts.txt", name_repair = "universal")
+randomFed<-read.table("./Figure3_data/Fig3_randomFed.txt",sep="\t",stringsAsFactors = F, 
                       header=T, check.names=F,as.is=T)
 
 GroupPalette<-c("#89adc5", #light grey-blue
@@ -520,97 +520,96 @@ pairwise_survdiff(Surv(time=Time, event=GvHD,type="right") ~ Group,
 
 #Figure 3G
 #other models were tested and assessed for fit using pp_check() and loo_compare()
-CD45mod_slope <- brm(percent_CD45pos~InjStage*Group+(InjStage|AnimalID),
+CD45mod_slope_zib <- brm(percent_CD45pos~InjStage*Group+(InjStage|AnimalID),
                      data=blood%>%
                        mutate(InjStage=factor(InjWeeks),
-                              percent_CD45pos=percent_CD45pos+0.001)%>%
+                              percent_CD45pos=percent_CD45pos/100)%>%
                        filter(Group!="PBS",InjDays>0,!is.na(percent_CD45pos)),
-                     prior=c(set_prior("normal(-5,5)", class = "Intercept"),
-                             set_prior("normal(-5,5)", class = "b")),
-                     iter=10000,
-                     warmup=1000,
-                     family="lognormal",
+                     prior=c(set_prior("normal(-5,10)", class = "b")),
+                     # iter=10000,
+                     # warmup=1000,
+                     family="zero_inflated_beta",
                      control = list(adapt_delta=0.975,
                                     max_treedepth=12),
                      backend = "cmdstanr",
+                     cores = 4,
                      threads = threading(parallel::detectCores()),
-                     silent=0,
-                     save_pars = save_pars(all = TRUE))
+                     silent=0)
 
-pp_check(CD45mod_slope)+scale_x_log10()
+pp_check(CD45mod_slope_zib)
 
-cd45_res_tab<-rbind(hypothesis(CD45mod_slope,"exp(Intercept+InjStage2+GroupCARmed_PBMChi+InjStage2:GroupCARmed_PBMChi)-
-                               exp(Intercept+InjStage2+GroupCARmed+InjStage2:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
-                      exp(Intercept+InjStage3+GroupCARmed+InjStage3:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage2+GroupCARmed_PBMChi+InjStage2:GroupCARmed_PBMChi)-
-                               exp(Intercept+InjStage2+GroupCARhi+InjStage2:GroupCARhi)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
-                      exp(Intercept+InjStage3+GroupCARhi+InjStage3:GroupCARhi)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage2+GroupCARmed_PBMChi+InjStage2:GroupCARmed_PBMChi)-
-                               exp(Intercept+InjStage2+GroupCARmed_PBMClo+InjStage2:GroupCARmed_PBMClo)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
-                               exp(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage2+GroupCARmed_PBMChi+InjStage2:GroupCARmed_PBMChi)-
-                               exp(Intercept+InjStage2)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
-                      exp(Intercept+InjStage3)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage3+GroupCARhi+InjStage3:GroupCARhi)-
-                               exp(Intercept+InjStage3+GroupCARmed+InjStage3:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage4+GroupCARhi+InjStage4:GroupCARhi)-
-                               exp(Intercept+InjStage4+GroupCARmed+InjStage4:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage6+GroupCARhi+InjStage6:GroupCARhi)-
-                               exp(Intercept+InjStage6+GroupCARmed+InjStage6:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage8+GroupCARhi+InjStage8:GroupCARhi)-
-                               exp(Intercept+InjStage9+GroupCARmed+InjStage9:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage13+GroupCARhi+InjStage13:GroupCARhi)-
-                               exp(Intercept+InjStage13+GroupCARmed+InjStage13:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage3+GroupCARhi+InjStage3:GroupCARhi)-
-                               exp(Intercept+InjStage3)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage4+GroupCARhi+InjStage4:GroupCARhi)-
-                               exp(Intercept+InjStage4)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage6+GroupCARhi+InjStage6:GroupCARhi)-
-                               exp(Intercept+InjStage6)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage8+GroupCARhi+InjStage8:GroupCARhi)-
-                               exp(Intercept+InjStage9)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage12+GroupCARhi+InjStage12:GroupCARhi)-
-                               exp(Intercept+InjStage12)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage13+GroupCARhi+InjStage13:GroupCARhi)-
-                               exp(Intercept+InjStage13)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage8+GroupCARhi+InjStage8:GroupCARhi)-
-                               exp(Intercept+InjStage9+GroupCARmed_PBMClo+InjStage9:GroupCARmed_PBMClo)<0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage3+GroupCARmed+InjStage3:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage4+GroupCARmed+InjStage4:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage5+GroupCARmed_PBMClo+InjStage5:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage5+GroupCARmed+InjStage5:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage6+GroupCARmed_PBMClo+InjStage6:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage6+GroupCARmed+InjStage6:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage7+GroupCARmed_PBMClo+InjStage7:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage7+GroupCARmed+InjStage7:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage9+GroupCARmed_PBMClo+InjStage9:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage9+GroupCARmed+InjStage9:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage12+GroupCARmed_PBMClo+InjStage12:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage12+GroupCARmed+InjStage12:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage13+GroupCARmed_PBMClo+InjStage13:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage13+GroupCARmed+InjStage13:GroupCARmed)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage3)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage4)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage5+GroupCARmed_PBMClo+InjStage5:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage5)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage6+GroupCARmed_PBMClo+InjStage6:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage6)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage7+GroupCARmed_PBMClo+InjStage7:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage7)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage9+GroupCARmed_PBMClo+InjStage9:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage9)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage12+GroupCARmed_PBMClo+InjStage12:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage12)>0")$hypothesis,
-                    hypothesis(CD45mod_slope,"exp(Intercept+InjStage13+GroupCARmed_PBMClo+InjStage13:GroupCARmed_PBMClo)-
-                               exp(Intercept+InjStage13)>0")$hypothesis)
+cd45_res_tab<-rbind(hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage2+GroupCARmed_PBMChi+InjStage2:GroupCARmed_PBMChi)-
+                               plogis(Intercept+InjStage2+GroupCARmed+InjStage2:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
+                      plogis(Intercept+InjStage3+GroupCARmed+InjStage3:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage2+GroupCARmed_PBMChi+InjStage2:GroupCARmed_PBMChi)-
+                               plogis(Intercept+InjStage2+GroupCARhi+InjStage2:GroupCARhi)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
+                      plogis(Intercept+InjStage3+GroupCARhi+InjStage3:GroupCARhi)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage2+GroupCARmed_PBMChi+InjStage2:GroupCARmed_PBMChi)-
+                               plogis(Intercept+InjStage2+GroupCARmed_PBMClo+InjStage2:GroupCARmed_PBMClo)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
+                               plogis(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage2+GroupCARmed_PBMChi+InjStage2:GroupCARmed_PBMChi)-
+                               plogis(Intercept+InjStage2)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)-
+                      plogis(Intercept+InjStage3)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage3+GroupCARhi+InjStage3:GroupCARhi)-
+                               plogis(Intercept+InjStage3+GroupCARmed+InjStage3:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage4+GroupCARhi+InjStage4:GroupCARhi)-
+                               plogis(Intercept+InjStage4+GroupCARmed+InjStage4:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage6+GroupCARhi+InjStage6:GroupCARhi)-
+                               plogis(Intercept+InjStage6+GroupCARmed+InjStage6:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage8+GroupCARhi+InjStage8:GroupCARhi)-
+                               plogis(Intercept+InjStage9+GroupCARmed+InjStage9:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage13+GroupCARhi+InjStage13:GroupCARhi)-
+                               plogis(Intercept+InjStage13+GroupCARmed+InjStage13:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage3+GroupCARhi+InjStage3:GroupCARhi)-
+                               plogis(Intercept+InjStage3)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage4+GroupCARhi+InjStage4:GroupCARhi)-
+                               plogis(Intercept+InjStage4)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage6+GroupCARhi+InjStage6:GroupCARhi)-
+                               plogis(Intercept+InjStage6)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage8+GroupCARhi+InjStage8:GroupCARhi)-
+                               plogis(Intercept+InjStage9)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage12+GroupCARhi+InjStage12:GroupCARhi)-
+                               plogis(Intercept+InjStage12)<0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage13+GroupCARhi+InjStage13:GroupCARhi)-
+                               plogis(Intercept+InjStage13)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage8+GroupCARhi+InjStage8:GroupCARhi)-
+                               plogis(Intercept+InjStage9+GroupCARmed_PBMClo+InjStage9:GroupCARmed_PBMClo)<0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage3+GroupCARmed+InjStage3:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage4+GroupCARmed+InjStage4:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage5+GroupCARmed_PBMClo+InjStage5:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage5+GroupCARmed+InjStage5:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage6+GroupCARmed_PBMClo+InjStage6:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage6+GroupCARmed+InjStage6:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage7+GroupCARmed_PBMClo+InjStage7:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage7+GroupCARmed+InjStage7:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage9+GroupCARmed_PBMClo+InjStage9:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage9+GroupCARmed+InjStage9:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage12+GroupCARmed_PBMClo+InjStage12:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage12+GroupCARmed+InjStage12:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage13+GroupCARmed_PBMClo+InjStage13:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage13+GroupCARmed+InjStage13:GroupCARmed)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage3)<0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage4)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage5+GroupCARmed_PBMClo+InjStage5:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage5)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage6+GroupCARmed_PBMClo+InjStage6:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage6)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage7+GroupCARmed_PBMClo+InjStage7:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage7)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage9+GroupCARmed_PBMClo+InjStage9:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage9)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage12+GroupCARmed_PBMClo+InjStage12:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage12)>0")$hypothesis,
+                    hypothesis(CD45mod_slope_zib,"plogis(Intercept+InjStage13+GroupCARmed_PBMClo+InjStage13:GroupCARmed_PBMClo)-
+                               plogis(Intercept+InjStage13)>0")$hypothesis)
 
 #Figure 3H
 #other models were tested and assessed for fit using pp_check() and loo_compare()
@@ -695,25 +694,25 @@ CD4MycCD45_res_tab<-rbind(hypothesis(CD4MycCD45mod_noRE,"(Intercept+GroupCARmed_
                       (Intercept+InjStage13)<0")$hypothesis)
 
 #we also want to know if the percentages are different from the injected percentages, ~50%
-CD4MycCD45_res_tab2<-rbind(hypothesis(CD4MycCD45mod_noRE,"(Intercept+GroupCARmed_PBMChi)=50")$hypothesis,
-                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)=50")$hypothesis,
+CD4MycCD45_res_tab2<-rbind(hypothesis(CD4MycCD45mod_noRE,"(Intercept+GroupCARmed_PBMChi)<50")$hypothesis,
+                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)<50")$hypothesis,
                            hypothesis(CD4MycCD45mod_noRE,"(Intercept+GroupCARmed_PBMClo)<50")$hypothesis,
                            hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)<50")$hypothesis,
-                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)=50")$hypothesis,
+                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)<50")$hypothesis,
                            hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage5+GroupCARmed_PBMClo+InjStage5:GroupCARmed_PBMClo)<50")$hypothesis,
                            hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage6+GroupCARmed_PBMClo+InjStage6:GroupCARmed_PBMClo)<50")$hypothesis,
-                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage7+GroupCARmed_PBMClo+InjStage7:GroupCARmed_PBMClo)=50")$hypothesis,
+                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage7+GroupCARmed_PBMClo+InjStage7:GroupCARmed_PBMClo)>50")$hypothesis,
                            hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage9+GroupCARmed_PBMClo+InjStage9:GroupCARmed_PBMClo)<50")$hypothesis,
                            hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage12+GroupCARmed_PBMClo+InjStage12:GroupCARmed_PBMClo)<50")$hypothesis,
                            hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage13+GroupCARmed_PBMClo+InjStage13:GroupCARmed_PBMClo)<50")$hypothesis,
-                           hypothesis(CD4MycCD45mod_noRE,"(Intercept)=50")$hypothesis,
+                           hypothesis(CD4MycCD45mod_noRE,"(Intercept)>50")$hypothesis,
                            hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage3)>50")$hypothesis,
-                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage4)=50")$hypothesis,
+                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage4)>50")$hypothesis,
                            hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage6)>50")$hypothesis,
-                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage8)=50")$hypothesis,
-                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage11)=50")$hypothesis,
-                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage13)=50")$hypothesis,
-                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage14)=50")$hypothesis
+                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage8)>50")$hypothesis,
+                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage11)>50")$hypothesis,
+                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage13)>50")$hypothesis,
+                           hypothesis(CD4MycCD45mod_noRE,"(Intercept+InjStage14)>50")$hypothesis
 )
 
 #Figure 3J
@@ -758,25 +757,25 @@ CD8MycCD45_res_tab<-rbind(hypothesis(CD8MycCD45mod_noRE,"(Intercept+GroupCARmed_
                       hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage13+GroupCARmed_PBMClo+InjStage13:GroupCARmed_PBMClo)-
                       (Intercept+InjStage13)>0")$hypothesis)
 
-CD8MycCD45_res_tab2<-rbind(hypothesis(CD8MycCD45mod_noRE,"(Intercept+GroupCARmed_PBMChi)=50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)=50")$hypothesis,
+CD8MycCD45_res_tab2<-rbind(hypothesis(CD8MycCD45mod_noRE,"(Intercept+GroupCARmed_PBMChi)>50")$hypothesis,
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage3+GroupCARmed_PBMChi+InjStage3:GroupCARmed_PBMChi)>50")$hypothesis,
                            hypothesis(CD8MycCD45mod_noRE,"(Intercept+GroupCARmed_PBMClo)>50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)=50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)=50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage5+GroupCARmed_PBMClo+InjStage5:GroupCARmed_PBMClo)=50")$hypothesis,
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage3+GroupCARmed_PBMClo+InjStage3:GroupCARmed_PBMClo)>50")$hypothesis,
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage4+GroupCARmed_PBMClo+InjStage4:GroupCARmed_PBMClo)<50")$hypothesis,
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage5+GroupCARmed_PBMClo+InjStage5:GroupCARmed_PBMClo)>50")$hypothesis,
                            hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage6+GroupCARmed_PBMClo+InjStage6:GroupCARmed_PBMClo)>50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage7+GroupCARmed_PBMClo+InjStage7:GroupCARmed_PBMClo)=50")$hypothesis,
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage7+GroupCARmed_PBMClo+InjStage7:GroupCARmed_PBMClo)<50")$hypothesis,
                            hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage9+GroupCARmed_PBMClo+InjStage9:GroupCARmed_PBMClo)>50")$hypothesis,
                            hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage12+GroupCARmed_PBMClo+InjStage12:GroupCARmed_PBMClo)>50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage13+GroupCARmed_PBMClo+InjStage13:GroupCARmed_PBMClo)=50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept)=50")$hypothesis,
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage13+GroupCARmed_PBMClo+InjStage13:GroupCARmed_PBMClo)>50")$hypothesis,
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept)<50")$hypothesis,
                            hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage3)<50")$hypothesis,
                            hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage4)<50")$hypothesis,
                            hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage6)<50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage8)=50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage11)=50")$hypothesis,
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage8)<50")$hypothesis,
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage11)<50")$hypothesis,
                            hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage13)<50")$hypothesis,
-                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage14)=50")$hypothesis
+                           hypothesis(CD8MycCD45mod_noRE,"(Intercept+InjStage14)<50")$hypothesis
 )
 
 #### Figures ####
@@ -789,9 +788,9 @@ Fig3B<-ggplot(weekly_monitoring[!is.na(weekly_monitoring$BW)&weekly_monitoring$S
   #facet_grid(Species~.,scales="free_x",space="free_x")+
   geom_ribbon(aes(x=Days/7,y=BW.Median,ymin = BW.LQ,ymax = BW.UQ, fill = Group),
               data=weeklyTab[!is.na(weeklyTab$BW.Median),],alpha=0.2)+
-  geom_line(aes(group=AnimalID,colour=Group),linetype=2,size=0.3,alpha=0.6)+ 
+  geom_line(aes(group=AnimalID,colour=Group),linetype=2,linewidth=0.3,alpha=0.6)+ 
   geom_line(aes(y=BW.Median,colour = Group,group=Group), 
-            data=weeklyTab[!is.na(weeklyTab$BW.Median),],size=0.5,alpha=0.8)+
+            data=weeklyTab[!is.na(weeklyTab$BW.Median),],linewidth=0.5,alpha=0.8)+
   geom_point(aes(y=BW.Median,colour = Group,group=Group,shape=Group,fill=Group), #
              data=weeklyTab[!is.na(weeklyTab$BW.Median),],size=1,alpha=0.8)+
   geom_vline(xintercept=as.numeric(difftime("2019/08/30","2019/08/10",units="weeks")),
@@ -811,15 +810,15 @@ Fig3B<-ggplot(weekly_monitoring[!is.na(weekly_monitoring$BW)&weekly_monitoring$S
   scale_shape_manual(name="Group", values=GroupShapes)+
   scale_y_continuous(breaks=pretty_breaks(n=5))+
   scale_x_continuous(breaks=pretty_breaks(n=6))+
-  theme(axis.title = element_text(family = "Arial", color="black", size=12),
+  theme(axis.title = element_text(family = "Arial", color="black", size=10),
         axis.ticks = element_line(colour="black"))+
-  theme(axis.text.x = element_text(family = "Arial",color="black",size=12))+ #,hjust=1,angle = 45
-  theme(axis.text.y = element_text(family = "Arial",color="black",size=12))+
-  theme(legend.text = element_text(family = "Arial",color="black",size=12), 
+  theme(axis.text.x = element_text(family = "Arial",color="black",size=10))+ #,hjust=1,angle = 45
+  theme(axis.text.y = element_text(family = "Arial",color="black",size=10))+
+  theme(legend.text = element_text(family = "Arial",color="black",size=10), 
         legend.title = element_blank(),
         legend.position = c(0.235,0.235),
         legend.key.size = unit(0.35,"cm"))+
-  theme(strip.text = element_text(family="Arial",color="black",size=12))+
+  theme(strip.text = element_text(family="Arial",color="black",size=10))+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
 Fig3B
@@ -829,9 +828,9 @@ Fig3C<-ggplot(weekly_monitoring[!is.na(weekly_monitoring$BG)&weekly_monitoring$S
                aes(x=Days/7,y=BG,group=Group))+
   geom_ribbon(aes(y=BG.Median,ymin = BG.LQ,ymax = BG.UQ,fill=Group), 
               data=weeklyTab[!is.na(weeklyTab$BG.Median),],alpha=0.2)+
-  geom_line(aes(group=AnimalID,colour=Group),linetype=2,size=0.3,alpha=0.6)+
+  geom_line(aes(group=AnimalID,colour=Group),linetype=2,linewidth=0.3,alpha=0.6)+
   geom_line(aes(y=BG.Median,colour = Group,group=Group), #
-            data=weeklyTab[!is.na(weeklyTab$BG.Median),],size=0.5,alpha=0.8)+
+            data=weeklyTab[!is.na(weeklyTab$BG.Median),],linewidth=0.5,alpha=0.8)+
   geom_point(aes(y=BG.Median,colour = Group,group=Group,shape=Group,fill=Group), 
              data=weeklyTab[!is.na(weeklyTab$BG.Median),],size=1,alpha=0.8)+
   scale_x_continuous(breaks=pretty_breaks(n=6))+
@@ -843,15 +842,15 @@ Fig3C<-ggplot(weekly_monitoring[!is.na(weekly_monitoring$BG)&weekly_monitoring$S
   scale_fill_manual(name="Group", values=GroupPalette)+
   scale_color_manual(name="Group", values=GroupPalette)+
   scale_shape_manual(name="Group", values=GroupShapes)+
-  theme(axis.title = element_text(family = "Arial", color="black", size=12),
+  theme(axis.title = element_text(family = "Arial", color="black", size=10),
         axis.ticks = element_line(colour="black"))+
-  theme(axis.text.x = element_text(family = "Arial",color="black",size=12))+
-  theme(axis.text.y = element_text(family = "Arial",color="black",size=12))+
-  theme(legend.text = element_text(family = "Arial",color="black",size=12), 
+  theme(axis.text.x = element_text(family = "Arial",color="black",size=10))+
+  theme(axis.text.y = element_text(family = "Arial",color="black",size=10))+
+  theme(legend.text = element_text(family = "Arial",color="black",size=10), 
         legend.title = element_blank(),
         legend.position = c(0.235,0.235),
         legend.key.size = unit(0.35,"cm"))+
-  theme(strip.text = element_text(family="Arial",color="black",size=12))+
+  theme(strip.text = element_text(family="Arial",color="black",size=10))+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
 Fig3C
@@ -867,11 +866,11 @@ breaks_fun <- function(x) {
 
 Fig3D<-ggplot(GSIS[GSIS$Time%in%c(15),],
                      aes(x=InjWeeks,y=CP.End/3020.29,colour=Group,fill=Group))+
-  geom_line(aes(group=AnimalID,colour=Group),linetype=2,size=0.3,alpha=0.6)+
+  geom_line(aes(group=AnimalID,colour=Group),linetype=2,linewidth=0.3,alpha=0.6)+
   facet_grid(.~Group,scales = "free_x",space="free_x",drop=T)+
   geom_line(aes(x=InjWeeks,y=CP.Median/3020.29,group=Group),
             data=GSIStab[GSIStab$Time%in%c(15),],
-            size=0.5,alpha=1) +
+            linewidth=0.5,alpha=1) +
   geom_point(aes(x=InjWeeks,y=CP.Median/3020.29,group=Group,shape=Group),
              data=GSIStab[GSIStab$Time%in%c(15),],
              size=1,alpha=0.8) +
@@ -905,15 +904,15 @@ Fig3D<-ggplot(GSIS[GSIS$Time%in%c(15),],
   geom_hline(yintercept = 4.5*5/3020.29,linetype=3,alpha=0.7)+
   scale_x_continuous(limits=c(-3,NA),breaks = breaks_fun)+
   scale_y_continuous(breaks=pretty_breaks(3))+
-  theme(axis.title = element_text(family = "Arial", color="black", size=12),
+  theme(axis.title = element_text(family = "Arial", color="black", size=10),
         axis.ticks = element_line(colour="black"))+
-  theme(axis.text.x = element_text(family = "Arial",color="black",size=12))+
-  theme(axis.text.y = element_text(family = "Arial",color="black",size=12))+
-  theme(legend.text = element_text(family = "Arial",color="black",size=12), 
+  theme(axis.text.x = element_text(family = "Arial",color="black",size=10))+
+  theme(axis.text.y = element_text(family = "Arial",color="black",size=10))+
+  theme(legend.text = element_text(family = "Arial",color="black",size=10), 
         legend.title = element_blank(),
         legend.position = "bottom")+
   theme(strip.text.x = element_blank(),
-        strip.text.y = element_text(family = "Arial",color="black",size=12))+
+        strip.text.y = element_text(family = "Arial",color="black",size=10))+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
 Fig3D
@@ -1025,18 +1024,18 @@ Fig3G<-ggplot(blood%>%
                              "CAR-med PBMC-hi"))+
   geom_hline(yintercept = mean(blood$percent_CD45pos[blood$Group=="PBS"|
                                                        blood$InjDays<0],na.rm=T),colour="black",linetype=3)+
-  theme(axis.title = element_text(family = "Arial", color="black", size=12),
+  theme(axis.title = element_text(family = "Arial", color="black", size=10),
         axis.ticks.y = element_line(colour="black"),
         axis.ticks.x = element_line(colour="black"))+
-  theme(axis.text.x = element_text(family = "Arial",color="black",size=12))+
-  theme(axis.text.y = element_text(family = "Arial",color="black",size=12))+
-  theme(legend.text = element_text(family = "Arial",color="black",size=12), 
+  theme(axis.text.x = element_text(family = "Arial",color="black",size=10))+
+  theme(axis.text.y = element_text(family = "Arial",color="black",size=10))+
+  theme(legend.text = element_text(family = "Arial",color="black",size=10), 
         legend.title = element_blank(),
         legend.position ="bottom")+
   guides(fill=guide_legend(ncol=2),
          colour=guide_legend(ncol=2),
          shape=guide_legend(ncol=2))+
-  theme(strip.text = element_text(family="Arial",color="black",size=12),
+  theme(strip.text = element_text(family="Arial",color="black",size=10),
         strip.background = element_blank())+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
@@ -1064,7 +1063,7 @@ Fig3H<-ggplot(blood%>%
                                   "CARmed_PBMClo"),InjDays>6,
                        !is.na(percent_Mycpos_hCD45pos.Median)),
               colour=NA,alpha=0.2)+
-  geom_line(aes(group=AnimalID,colour=Group),linetype=2,size=0.3,alpha=0.6)+
+  geom_line(aes(group=AnimalID,colour=Group),linetype=2,linewidth=0.3,alpha=0.6)+
   geom_point(aes(x=InjDays/7,y=percent_Mycpos_hCD45pos.Median,
                  colour = Group,group=Group,shape=Group), #
              data=bloodTab%>%
@@ -1077,7 +1076,7 @@ Fig3H<-ggplot(blood%>%
               filter(Group%in%c("CARhi","CARmed_PBMChi",
                                 "CARmed_PBMClo"),InjDays>6,
                      !is.na(percent_Mycpos_hCD45pos.Median)),
-            size=0.5,alpha=0.8)+
+            linewidth=0.5,alpha=0.8)+
   scale_x_continuous(limits=c(0,14),
                      breaks=pretty_breaks(n=8))+
   labs(x="",y=ylab)+
@@ -1093,18 +1092,18 @@ scale_colour_manual(name="Group", values=GroupPalette[-c(1,2,3)],
                     labels=c("CAR-hi",
                              "CAR-med PBMC-lo",
                              "CAR-med PBMC-hi"))+
-  theme(axis.title = element_text(family = "Arial", color="black", size=12),
+  theme(axis.title = element_text(family = "Arial", color="black", size=10),
         axis.ticks.y = element_line(colour="black"),
         axis.ticks.x = element_line(colour="black"))+
-  theme(axis.text.x = element_text(family = "Arial",color="black",size=12))+
-  theme(axis.text.y = element_text(family = "Arial",color="black",size=12))+
-  theme(legend.text = element_text(family = "Arial",color="black",size=12), 
+  theme(axis.text.x = element_text(family = "Arial",color="black",size=10))+
+  theme(axis.text.y = element_text(family = "Arial",color="black",size=10))+
+  theme(legend.text = element_text(family = "Arial",color="black",size=10), 
         legend.title = element_blank(),
         legend.position ="bottom")+
   guides(fill=guide_legend(ncol=2),
          colour=guide_legend(ncol=2),
          shape=guide_legend(ncol=2))+
-  theme(strip.text = element_text(family="Arial",color="black",size=12),
+  theme(strip.text = element_text(family="Arial",color="black",size=10),
         strip.background = element_blank())+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
@@ -1132,13 +1131,13 @@ Fig3I<-ggplot(blood%>%
                                      InjDays>6,
                                      !is.na(percent_CD4posMycposCD45pos.Median)),
               colour=NA,alpha=0.2)+
-  geom_line(aes(group=AnimalID,colour=Group),linetype=2,size=0.3,alpha=0.6)+
+  geom_line(aes(group=AnimalID,colour=Group),linetype=2,linewidth=0.3,alpha=0.6)+
   geom_line(aes(x=InjDays/7,y=percent_CD4pos_of_CD45posMycpos.Median,colour = Group,group=Group), #
             data=bloodTab%>%filter(Group%in%c("CARhi","CARmed_PBMChi",
                                               "CARmed_PBMClo"),
                                    InjDays>6,
                                    !is.na(percent_CD4posMycposCD45pos.Median)),
-            size=0.5,alpha=0.8)+
+            linewidth=0.5,alpha=0.8)+
   geom_point(aes(x=InjDays/7,y=percent_CD4pos_of_CD45posMycpos.Median,
                  colour = Group,group=Group,shape=Group), #
              data=bloodTab%>%filter(Group%in%c("CARhi","CARmed_PBMChi",
@@ -1161,18 +1160,18 @@ Fig3I<-ggplot(blood%>%
                     labels=c("CAR-hi",
                              "CAR-med PBMC-lo",
                              "CAR-med PBMC-hi"))+
-  theme(axis.title = element_text(family = "Arial", color="black", size=12),
+  theme(axis.title = element_text(family = "Arial", color="black", size=10),
         axis.ticks.y = element_line(colour="black"),
         axis.ticks.x = element_line(colour="black"))+
-  theme(axis.text.x = element_text(family = "Arial",color="black",size=12))+
-  theme(axis.text.y = element_text(family = "Arial",color="black",size=12))+
-  theme(legend.text = element_text(family = "Arial",color="black",size=12), 
+  theme(axis.text.x = element_text(family = "Arial",color="black",size=10))+
+  theme(axis.text.y = element_text(family = "Arial",color="black",size=10))+
+  theme(legend.text = element_text(family = "Arial",color="black",size=10), 
         legend.title = element_blank(),
         legend.position ="bottom")+
   guides(fill=guide_legend(ncol=2),
          colour=guide_legend(ncol=2),
          shape=guide_legend(ncol=2))+
-  theme(strip.text = element_text(family="Arial",color="black",size=12),
+  theme(strip.text = element_text(family="Arial",color="black",size=10),
         strip.background = element_blank())+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
@@ -1201,13 +1200,13 @@ Fig3J<-ggplot(blood%>%
                                      InjDays>6,
                                      !is.na(percent_CD8pos_of_CD45posMycpos.Median)),
               colour=NA,alpha=0.2)+
-  geom_line(aes(group=AnimalID,colour=Group),linetype=2,size=0.3,alpha=0.6)+
+  geom_line(aes(group=AnimalID,colour=Group),linetype=2,linewidth=0.3,alpha=0.6)+
   geom_line(aes(x=InjDays/7,y=percent_CD8pos_of_CD45posMycpos.Median,colour = Group,group=Group), #
             data=bloodTab%>%filter(Group%in%c("CARhi","CARmed_PBMChi",
                                               "CARmed_PBMClo"),
                                    InjDays>6,
                                    !is.na(percent_CD8pos_of_CD45posMycpos.Median)),
-            size=0.5,alpha=0.8)+
+            linewidth=0.5,alpha=0.8)+
   geom_point(aes(x=InjDays/7,y=percent_CD8pos_of_CD45posMycpos.Median,
                  colour = Group,group=Group,shape=Group),
              data=bloodTab%>%filter(Group%in%c("CARhi","CARmed_PBMChi",
@@ -1230,18 +1229,18 @@ Fig3J<-ggplot(blood%>%
                     labels=c("CAR-hi",
                              "CAR-med PBMC-lo",
                              "CAR-med PBMC-hi"))+
-  theme(axis.title = element_text(family = "Arial", color="black", size=12),
+  theme(axis.title = element_text(family = "Arial", color="black", size=10),
         axis.ticks.y = element_line(colour="black"),
         axis.ticks.x = element_line(colour="black"))+
-  theme(axis.text.x = element_text(family = "Arial",color="black",size=12))+ 
-  theme(axis.text.y = element_text(family = "Arial",color="black",size=12))+
-  theme(legend.text = element_text(family = "Arial",color="black",size=12), 
+  theme(axis.text.x = element_text(family = "Arial",color="black",size=10))+ 
+  theme(axis.text.y = element_text(family = "Arial",color="black",size=10))+
+  theme(legend.text = element_text(family = "Arial",color="black",size=10), 
         legend.title = element_blank(),
         legend.position ="bottom")+
   guides(fill=guide_legend(ncol=2),
          colour=guide_legend(ncol=2),
          shape=guide_legend(ncol=2))+
-  theme(strip.text = element_text(family="Arial",color="black",size=12),
+  theme(strip.text = element_text(family="Arial",color="black",size=10),
         strip.background = element_blank())+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))
@@ -1251,14 +1250,14 @@ Fig3J
 #use Fig3B as a placeholder for the schematic; edit in Inkscape
 (Figure3<-(Fig3B)/(Fig3B+ theme(legend.position = "None") | Fig3C+plot_layout(guides = 'collect')) /
    (Fig3D+ theme(legend.position = "None"))/
-   (Fig3E$plot+theme(axis.text.x = element_text(family = "Arial",color="black",size=12),
-                          axis.text.y = element_text(family = "Arial",color="black",size=12),
-                          axis.title.x = element_text(family = "Arial",color="black",size=12),
-                          axis.title.y = element_text(family = "Arial",color="black",size=12)) | 
-      Fig3F$plot+theme(axis.text.x = element_text(family = "Arial",color="black",size=12),
-                          axis.text.y = element_text(family = "Arial",color="black",size=12),
-                          axis.title.x = element_text(family = "Arial",color="black",size=12),
-                          axis.title.y = element_text(family = "Arial",color="black",size=12)))/
+   (Fig3E$plot+theme(axis.text.x = element_text(family = "Arial",color="black",size=10),
+                          axis.text.y = element_text(family = "Arial",color="black",size=10),
+                          axis.title.x = element_text(family = "Arial",color="black",size=10),
+                          axis.title.y = element_text(family = "Arial",color="black",size=10)) | 
+      Fig3F$plot+theme(axis.text.x = element_text(family = "Arial",color="black",size=10),
+                          axis.text.y = element_text(family = "Arial",color="black",size=10),
+                          axis.title.x = element_text(family = "Arial",color="black",size=10),
+                          axis.title.y = element_text(family = "Arial",color="black",size=10)))/
    (Fig3G+ theme(legend.position = "None",
                   axis.text.x = element_blank(),
                   axis.ticks.x = element_blank()) | Fig3H+ theme(legend.position = "None",
@@ -1271,3 +1270,549 @@ Fig3J
 ggsave('Figure3.svg', Figure3, width=8.5, height=9, units = "in", dpi=500)
 ggsave('Figure3_tall.svg', Figure3, width=8.5, height=12, units = "in", dpi=500)
 #use the taller version panels in the shorter version - patchwork squishes them a little
+
+##### Tables #####
+library("gt")
+
+###### Supplementary Table 8 ######
+cd45_res_tab$InjWeeks<-str_split_fixed(cd45_res_tab$Hypothesis, boundary("word"),10)[,3]%>%
+  str_replace_all("InjStage","")%>%as.numeric()
+cd45_res_tab$ContrGroup<-str_split_fixed(cd45_res_tab$Hypothesis, boundary("word"),10)[,4]%>%
+  str_replace_all("Group","")
+cd45_res_tab$RefGroup<-str_split_fixed(cd45_res_tab$Hypothesis, boundary("word"),12)[,10]%>%
+  str_replace_all("Group","")
+cd45_res_tab$RefGroup[cd45_res_tab$RefGroup=="0"]<-"CARlo"
+
+cd45_res_tab<-cd45_res_tab%>%mutate(
+  Estimate=100*Estimate,
+  CI.Lower=100*CI.Lower,
+  CI.Upper=100*CI.Upper
+)
+
+SuppTab8<-cd45_res_tab %>% select(c(Estimate,CI.Lower,CI.Upper,
+                             Evid.Ratio,InjWeeks,RefGroup,ContrGroup))%>%
+  mutate(Evid.Strength=case_when(cd45_res_tab$Evid.Ratio<=10^(1/2)~"Barely worth mentioning",
+                                 cd45_res_tab$Evid.Ratio<=10^(1)~"Substantial",
+                                 cd45_res_tab$Evid.Ratio<=10^(3/2)~"Strong",
+                                 cd45_res_tab$Evid.Ratio<=10^(2)~"Very strong",
+                                 cd45_res_tab$Evid.Ratio>10^(2)~"Decisive")) %>%
+  #group_by(Sex) %>% 
+  arrange(InjWeeks,ContrGroup,RefGroup)%>%
+  gt() %>%
+  # row_group_order(c("Female - FP","Female - KC","Female - TC",
+  #                   "Male - FP","Male - KC", "Male - TC"))%>%
+  tab_header(title = md("Supplementary Table 8. Percent of huCD45+ Cells Compared Between Groups")) %>%
+  tab_spanner(
+    label = "Group Comparisons",
+    columns = c(ContrGroup,RefGroup)
+  )%>%
+  tab_spanner(
+    label = "95% Credibility Interval (%)",
+    columns = c(CI.Lower,CI.Upper)
+  )%>%
+  # tab_spanner(
+  #   label = "Genotype Comparisons",
+  #   columns = c(Comp2,Comp1)
+  # )%>%
+  cols_move_to_start(
+    columns = c(ContrGroup,RefGroup,InjWeeks)
+  )%>%
+  #cols_hide(columns=c(FullGroupRef,FullGroupContr))%>%
+  cols_label(CI.Lower = "Lower Bound",
+             CI.Upper = "Upper Bound",
+             Evid.Ratio = "Evidence Ratio",
+             Evid.Strength = "Strength of Evidence",
+             RefGroup = "Reference",
+             ContrGroup = "Contrast",
+             Estimate = html("Difference in<br>Percent huCD45+ Cells"),
+             InjWeeks = "Weeks Post-Injection")%>%
+  fmt_number(
+    columns = c(Estimate,CI.Lower,CI.Upper),
+    decimals = 1,
+    use_seps = TRUE
+  ) %>%
+  fmt_number(
+    columns = c(Evid.Ratio),
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  # data_color( 
+  #   columns = c(RefGroup), 
+  #   colors = scales::col_factor( 
+  #     palette = GroupPalette,
+  #     domain = levels(weekly_monitoring$FullGroup)
+  #   )) %>%
+  # data_color(
+  #   columns = c(ContrGroup),
+  #   colors = scales::col_factor(
+  #     palette = GroupPalette,
+  #     domain =  levels(weekly_monitoring$FullGroup)
+#   )) %>%
+tab_source_note(md("Relates to Figure 3G.")) %>%
+  tab_style(
+    locations = cells_column_labels(columns = everything()),
+    style     = list(
+      cell_borders(sides = "bottom", weight = px(3)),
+      cell_text(weight = "bold")
+    )
+  ) %>%
+  tab_style(
+    locations = cells_title(groups = "title"),
+    style     = list(
+      cell_text(weight = "bold", size = 24)
+    )
+  ) %>%
+  tab_options(
+    table.font.style = "Arial",
+    table.font.color = "black"
+  )
+SuppTab8
+SuppTab8 %>% gtsave("SuppTab8.docx")
+
+###### Supplementary Table 9 ######
+MycCD45_res_tab$InjWeeks<-str_split_fixed(MycCD45_res_tab$Hypothesis, boundary("word"),7)[,2]%>%
+  str_replace_all("InjStage","")%>%as.numeric()
+MycCD45_res_tab$InjWeeks[is.na(MycCD45_res_tab$InjWeeks)]<-2
+MycCD45_res_tab$ContrGroup<-str_extract(MycCD45_res_tab$Hypothesis,"GroupCARmed[_][A-Z]{4}[a-z]{2}")%>%
+  str_replace_all("Group","")
+  
+  
+MycCD45_res_tab$RefGroup<-str_split_fixed(MycCD45_res_tab$Hypothesis,"[-]",2)[,2]%>%
+  str_extract("GroupCARmed[_][A-Z]{4}[a-z]{2}")%>%
+  str_replace_all("Group","")
+MycCD45_res_tab$RefGroup[is.na(MycCD45_res_tab$RefGroup)]<-"CARhi"
+
+SuppTab9<-MycCD45_res_tab %>% select(c(Estimate,CI.Lower,CI.Upper,
+                                    Evid.Ratio,InjWeeks,RefGroup,ContrGroup))%>%
+  mutate(Evid.Strength=case_when(MycCD45_res_tab$Evid.Ratio<=10^(0)~"Negative",
+                                 MycCD45_res_tab$Evid.Ratio<=10^(1/2)~"Barely worth mentioning",
+                                 MycCD45_res_tab$Evid.Ratio<=10^(1)~"Substantial",
+                                 MycCD45_res_tab$Evid.Ratio<=10^(3/2)~"Strong",
+                                 MycCD45_res_tab$Evid.Ratio<=10^(2)~"Very strong",
+                                 MycCD45_res_tab$Evid.Ratio>10^(2)~"Decisive")) %>%
+  #group_by(Sex) %>% 
+  arrange(InjWeeks,ContrGroup,RefGroup)%>%
+  gt() %>%
+  # row_group_order(c("Female - FP","Female - KC","Female - TC",
+  #                   "Male - FP","Male - KC", "Male - TC"))%>%
+  tab_header(title = md("Supplementary Table 9. Percent Myc+ of CD45+ Cells Compared Between Groups")) %>%
+  tab_spanner(
+    label = "Group Comparisons",
+    columns = c(ContrGroup,RefGroup)
+  )%>%
+  tab_spanner(
+    label = "95% Credibility Interval (%)",
+    columns = c(CI.Lower,CI.Upper)
+  )%>%
+  # tab_spanner(
+  #   label = "Genotype Comparisons",
+  #   columns = c(Comp2,Comp1)
+  # )%>%
+  cols_move_to_start(
+    columns = c(ContrGroup,RefGroup,InjWeeks)
+  )%>%
+  #cols_hide(columns=c(FullGroupRef,FullGroupContr))%>%
+  cols_label(CI.Lower = "Lower Bound",
+             CI.Upper = "Upper Bound",
+             Evid.Ratio = "Evidence Ratio",
+             Evid.Strength = "Strength of Evidence",
+             RefGroup = "Reference",
+             ContrGroup = "Contrast",
+             Estimate = html("Difference in<br>Percent Myc+ of CD45+ Cells"),
+             InjWeeks = "Weeks Post-Injection")%>%
+  fmt_number(
+    columns = c(Estimate,CI.Lower,CI.Upper),
+    decimals = 1,
+    use_seps = TRUE
+  ) %>%
+  fmt_number(
+    columns = c(Evid.Ratio),
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  # data_color( 
+  #   columns = c(RefGroup), 
+  #   colors = scales::col_factor( 
+  #     palette = GroupPalette,
+  #     domain = levels(weekly_monitoring$FullGroup)
+  #   )) %>%
+  # data_color(
+  #   columns = c(ContrGroup),
+  #   colors = scales::col_factor(
+  #     palette = GroupPalette,
+  #     domain =  levels(weekly_monitoring$FullGroup)
+#   )) %>%
+tab_source_note(md("Relates to Figure 3H.")) %>%
+  tab_style(
+    locations = cells_column_labels(columns = everything()),
+    style     = list(
+      cell_borders(sides = "bottom", weight = px(3)),
+      cell_text(weight = "bold")
+    )
+  ) %>%
+  tab_style(
+    locations = cells_title(groups = "title"),
+    style     = list(
+      cell_text(weight = "bold", size = 24)
+    )
+  ) %>%
+  tab_options(
+    table.font.style = "Arial",
+    table.font.color = "black"
+  )
+SuppTab9
+SuppTab9 %>% gtsave("SuppTab9.docx")
+
+###### Supplementary Table 10 ######
+CD4MycCD45_res_tab$InjWeeks<-str_extract(CD4MycCD45_res_tab$Hypothesis,"InjStage[0-9]{1,2}")%>%
+  str_replace_all("InjStage","")%>%as.numeric()
+CD4MycCD45_res_tab$InjWeeks[is.na(CD4MycCD45_res_tab$InjWeeks)]<-2
+CD4MycCD45_res_tab$ContrGroup<-str_extract(CD4MycCD45_res_tab$Hypothesis,"GroupCARmed[_][A-Z]{4}[a-z]{2}")%>%
+  str_replace_all("Group","")
+
+CD4MycCD45_res_tab$RefGroup<-str_split_fixed(CD4MycCD45_res_tab$Hypothesis,"[-]",2)[,2]%>%
+  str_extract("GroupCARmed[_][A-Z]{4}[a-z]{2}")%>%
+  str_replace_all("Group","")
+CD4MycCD45_res_tab$RefGroup[is.na(CD4MycCD45_res_tab$RefGroup)]<-"CARhi"
+
+SuppTab9<-CD4MycCD45_res_tab %>% select(c(Estimate,CI.Lower,CI.Upper,
+                                       Evid.Ratio,InjWeeks,RefGroup,ContrGroup))%>%
+  mutate(Evid.Strength=case_when(CD4MycCD45_res_tab$Evid.Ratio<=10^(0)~"Negative",
+                                 CD4MycCD45_res_tab$Evid.Ratio<=10^(1/2)~"Barely worth mentioning",
+                                 CD4MycCD45_res_tab$Evid.Ratio<=10^(1)~"Substantial",
+                                 CD4MycCD45_res_tab$Evid.Ratio<=10^(3/2)~"Strong",
+                                 CD4MycCD45_res_tab$Evid.Ratio<=10^(2)~"Very strong",
+                                 CD4MycCD45_res_tab$Evid.Ratio>10^(2)~"Decisive")) %>%
+  #group_by(Sex) %>% 
+  arrange(InjWeeks,ContrGroup,RefGroup)%>%
+  gt() %>%
+  # row_group_order(c("Female - FP","Female - KC","Female - TC",
+  #                   "Male - FP","Male - KC", "Male - TC"))%>%
+  tab_header(title = md("Supplementary Table 10. Percent CD4+ of A2-CAR T Cells Compared Between Groups")) %>%
+  tab_spanner(
+    label = "Group Comparisons",
+    columns = c(ContrGroup,RefGroup)
+  )%>%
+  tab_spanner(
+    label = "95% Credibility Interval (%)",
+    columns = c(CI.Lower,CI.Upper)
+  )%>%
+  # tab_spanner(
+  #   label = "Genotype Comparisons",
+  #   columns = c(Comp2,Comp1)
+  # )%>%
+  cols_move_to_start(
+    columns = c(ContrGroup,RefGroup,InjWeeks)
+  )%>%
+  #cols_hide(columns=c(FullGroupRef,FullGroupContr))%>%
+  cols_label(CI.Lower = "Lower Bound",
+             CI.Upper = "Upper Bound",
+             Evid.Ratio = "Evidence Ratio",
+             Evid.Strength = "Strength of Evidence",
+             RefGroup = "Reference",
+             ContrGroup = "Contrast",
+             Estimate = html("Difference"),
+             InjWeeks = "Weeks Post-Injection")%>%
+  fmt_number(
+    columns = c(Estimate,CI.Lower,CI.Upper,Evid.Ratio),
+    decimals = 1,
+    use_seps = TRUE
+  ) %>%
+  fmt_number(
+    columns = c(Evid.Ratio),
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  # data_color( 
+  #   columns = c(RefGroup), 
+  #   colors = scales::col_factor( 
+  #     palette = GroupPalette,
+  #     domain = levels(weekly_monitoring$FullGroup)
+  #   )) %>%
+  # data_color(
+  #   columns = c(ContrGroup),
+  #   colors = scales::col_factor(
+  #     palette = GroupPalette,
+  #     domain =  levels(weekly_monitoring$FullGroup)
+#   )) %>%
+tab_source_note(md("Relates to Figure 3I.")) %>%
+  tab_style(
+    locations = cells_column_labels(columns = everything()),
+    style     = list(
+      cell_borders(sides = "bottom", weight = px(3)),
+      cell_text(weight = "bold")
+    )
+  ) %>%
+  tab_style(
+    locations = cells_title(groups = "title"),
+    style     = list(
+      cell_text(weight = "bold", size = 24)
+    )
+  ) %>%
+  tab_options(
+    table.font.style = "Arial",
+    table.font.color = "black"
+  )
+SuppTab10
+SuppTab10 %>% gtsave("SuppTab10.docx")
+
+###### Supplementary Table 11 ######
+CD4MycCD45_res_tab2$InjWeeks<-str_extract(CD4MycCD45_res_tab2$Hypothesis,"InjStage[0-9]{1,2}")%>%
+  str_replace_all("InjStage","")%>%as.numeric()
+CD4MycCD45_res_tab2$InjWeeks[is.na(CD4MycCD45_res_tab2$InjWeeks)]<-2
+CD4MycCD45_res_tab2$ContrGroup<-str_extract(CD4MycCD45_res_tab2$Hypothesis,"GroupCARmed[_][A-Z]{4}[a-z]{2}")%>%
+  str_replace_all("Group","")
+CD4MycCD45_res_tab2$ContrGroup[is.na(CD4MycCD45_res_tab2$ContrGroup)]<-"CARhi"
+
+SuppTab11<-CD4MycCD45_res_tab2 %>% select(c(Estimate,CI.Lower,CI.Upper,
+                                          Evid.Ratio,InjWeeks,ContrGroup))%>%
+  mutate(Evid.Strength=case_when(CD4MycCD45_res_tab2$Evid.Ratio<=10^(0)~"Negative",
+                                 CD4MycCD45_res_tab2$Evid.Ratio<=10^(1/2)~"Barely worth mentioning",
+                                 CD4MycCD45_res_tab2$Evid.Ratio<=10^(1)~"Substantial",
+                                 CD4MycCD45_res_tab2$Evid.Ratio<=10^(3/2)~"Strong",
+                                 CD4MycCD45_res_tab2$Evid.Ratio<=10^(2)~"Very strong",
+                                 CD4MycCD45_res_tab2$Evid.Ratio>10^(2)~"Decisive")) %>%
+  #group_by(Sex) %>% 
+  arrange(InjWeeks,ContrGroup)%>%
+  gt() %>%
+  # row_group_order(c("Female - FP","Female - KC","Female - TC",
+  #                   "Male - FP","Male - KC", "Male - TC"))%>%
+  tab_header(title = md("Supplementary Table 11. Percent CD4+ of A2-CAR T Cells Compared To 50%")) %>%
+  tab_spanner(
+    label = "95% Credibility Interval (%)",
+    columns = c(CI.Lower,CI.Upper)
+  )%>%
+  # tab_spanner(
+  #   label = "Genotype Comparisons",
+  #   columns = c(Comp2,Comp1)
+  # )%>%
+  cols_move_to_start(
+    columns = c(ContrGroup,InjWeeks)
+  )%>%
+  #cols_hide(columns=c(FullGroupRef,FullGroupContr))%>%
+  cols_label(CI.Lower = "Lower Bound",
+             CI.Upper = "Upper Bound",
+             Evid.Ratio = "Evidence Ratio",
+             Evid.Strength = "Strength of Evidence",
+             ContrGroup = "Group",
+             Estimate = html("Difference"),
+             InjWeeks = "Weeks Post-Injection")%>%
+  fmt_number(
+    columns = c(Estimate,CI.Lower,CI.Upper,Evid.Ratio),
+    decimals = 1,
+    use_seps = TRUE
+  ) %>%
+  fmt_number(
+    columns = c(Evid.Ratio),
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  # data_color( 
+  #   columns = c(RefGroup), 
+  #   colors = scales::col_factor( 
+  #     palette = GroupPalette,
+  #     domain = levels(weekly_monitoring$FullGroup)
+  #   )) %>%
+  # data_color(
+  #   columns = c(ContrGroup),
+  #   colors = scales::col_factor(
+  #     palette = GroupPalette,
+  #     domain =  levels(weekly_monitoring$FullGroup)
+#   )) %>%
+tab_source_note(md("Relates to Figure 3I.")) %>%
+  tab_style(
+    locations = cells_column_labels(columns = everything()),
+    style     = list(
+      cell_borders(sides = "bottom", weight = px(3)),
+      cell_text(weight = "bold")
+    )
+  ) %>%
+  tab_style(
+    locations = cells_title(groups = "title"),
+    style     = list(
+      cell_text(weight = "bold", size = 24)
+    )
+  ) %>%
+  tab_options(
+    table.font.style = "Arial",
+    table.font.color = "black"
+  )
+SuppTab11
+SuppTab11 %>% gtsave("SuppTab11.docx")
+
+###### Supplementary Table 12 ######
+CD8MycCD45_res_tab$InjWeeks<-str_extract(CD8MycCD45_res_tab$Hypothesis,"InjStage[0-9]{1,2}")%>%
+  str_replace_all("InjStage","")%>%as.numeric()
+CD8MycCD45_res_tab$InjWeeks[is.na(CD8MycCD45_res_tab$InjWeeks)]<-2
+CD8MycCD45_res_tab$ContrGroup<-str_extract(CD8MycCD45_res_tab$Hypothesis,"GroupCARmed[_][A-Z]{4}[a-z]{2}")%>%
+  str_replace_all("Group","")
+
+CD8MycCD45_res_tab$RefGroup<-str_split_fixed(CD8MycCD45_res_tab$Hypothesis,"[-]",2)[,2]%>%
+  str_extract("GroupCARmed[_][A-Z]{4}[a-z]{2}")%>%
+  str_replace_all("Group","")
+CD8MycCD45_res_tab$RefGroup[is.na(CD8MycCD45_res_tab$RefGroup)]<-"CARhi"
+
+SuppTab12<-CD8MycCD45_res_tab %>% select(c(Estimate,CI.Lower,CI.Upper,
+                                          Evid.Ratio,InjWeeks,RefGroup,ContrGroup))%>%
+  mutate(Evid.Strength=case_when(CD8MycCD45_res_tab$Evid.Ratio<=10^(0)~"Negative",
+                                 CD8MycCD45_res_tab$Evid.Ratio<=10^(1/2)~"Barely worth mentioning",
+                                 CD8MycCD45_res_tab$Evid.Ratio<=10^(1)~"Substantial",
+                                 CD8MycCD45_res_tab$Evid.Ratio<=10^(3/2)~"Strong",
+                                 CD8MycCD45_res_tab$Evid.Ratio<=10^(2)~"Very strong",
+                                 CD8MycCD45_res_tab$Evid.Ratio>10^(2)~"Decisive")) %>%
+  #group_by(Sex) %>% 
+  arrange(InjWeeks,ContrGroup,RefGroup)%>%
+  gt() %>%
+  # row_group_order(c("Female - FP","Female - KC","Female - TC",
+  #                   "Male - FP","Male - KC", "Male - TC"))%>%
+  tab_header(title = md("Supplementary Table 12. Percent CD8+ of A2-CAR T Cells Compared Between Groups")) %>%
+  tab_spanner(
+    label = "Group Comparisons",
+    columns = c(ContrGroup,RefGroup)
+  )%>%
+  tab_spanner(
+    label = "95% Credibility Interval (%)",
+    columns = c(CI.Lower,CI.Upper)
+  )%>%
+  # tab_spanner(
+  #   label = "Genotype Comparisons",
+  #   columns = c(Comp2,Comp1)
+  # )%>%
+  cols_move_to_start(
+    columns = c(ContrGroup,RefGroup,InjWeeks)
+  )%>%
+  #cols_hide(columns=c(FullGroupRef,FullGroupContr))%>%
+  cols_label(CI.Lower = "Lower Bound",
+             CI.Upper = "Upper Bound",
+             Evid.Ratio = "Evidence Ratio",
+             Evid.Strength = "Strength of Evidence",
+             RefGroup = "Reference",
+             ContrGroup = "Contrast",
+             Estimate = html("Difference"),
+             InjWeeks = "Weeks Post-Injection")%>%
+  fmt_number(
+    columns = c(Estimate,CI.Lower,CI.Upper,Evid.Ratio),
+    decimals = 1,
+    use_seps = TRUE
+  ) %>%
+  fmt_number(
+    columns = c(Evid.Ratio),
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  # data_color( 
+  #   columns = c(RefGroup), 
+  #   colors = scales::col_factor( 
+  #     palette = GroupPalette,
+  #     domain = levels(weekly_monitoring$FullGroup)
+  #   )) %>%
+  # data_color(
+  #   columns = c(ContrGroup),
+  #   colors = scales::col_factor(
+  #     palette = GroupPalette,
+  #     domain =  levels(weekly_monitoring$FullGroup)
+#   )) %>%
+tab_source_note(md("Relates to Figure 3J.")) %>%
+  tab_style(
+    locations = cells_column_labels(columns = everything()),
+    style     = list(
+      cell_borders(sides = "bottom", weight = px(3)),
+      cell_text(weight = "bold")
+    )
+  ) %>%
+  tab_style(
+    locations = cells_title(groups = "title"),
+    style     = list(
+      cell_text(weight = "bold", size = 24)
+    )
+  ) %>%
+  tab_options(
+    table.font.style = "Arial",
+    table.font.color = "black"
+  )
+SuppTab12
+SuppTab12 %>% gtsave("SuppTab12.docx")
+
+###### Supplementary Table 13 ######
+CD8MycCD45_res_tab2$InjWeeks<-str_extract(CD8MycCD45_res_tab2$Hypothesis,"InjStage[0-9]{1,2}")%>%
+  str_replace_all("InjStage","")%>%as.numeric()
+CD8MycCD45_res_tab2$InjWeeks[is.na(CD8MycCD45_res_tab2$InjWeeks)]<-2
+CD8MycCD45_res_tab2$ContrGroup<-str_extract(CD8MycCD45_res_tab2$Hypothesis,"GroupCARmed[_][A-Z]{4}[a-z]{2}")%>%
+  str_replace_all("Group","")
+CD8MycCD45_res_tab2$ContrGroup[is.na(CD8MycCD45_res_tab2$ContrGroup)]<-"CARhi"
+
+SuppTab13<-CD8MycCD45_res_tab2 %>% select(c(Estimate,CI.Lower,CI.Upper,
+                                            Evid.Ratio,InjWeeks,ContrGroup))%>%
+  mutate(Evid.Strength=case_when(CD8MycCD45_res_tab2$Evid.Ratio<=10^(0)~"Negative",
+                                 CD8MycCD45_res_tab2$Evid.Ratio<=10^(1/2)~"Barely worth mentioning",
+                                 CD8MycCD45_res_tab2$Evid.Ratio<=10^(1)~"Substantial",
+                                 CD8MycCD45_res_tab2$Evid.Ratio<=10^(3/2)~"Strong",
+                                 CD8MycCD45_res_tab2$Evid.Ratio<=10^(2)~"Very strong",
+                                 CD8MycCD45_res_tab2$Evid.Ratio>10^(2)~"Decisive")) %>%
+  #group_by(Sex) %>% 
+  arrange(InjWeeks,ContrGroup)%>%
+  gt() %>%
+  # row_group_order(c("Female - FP","Female - KC","Female - TC",
+  #                   "Male - FP","Male - KC", "Male - TC"))%>%
+  tab_header(title = md("Supplementary Table 13. Percent CD8+ of A2-CAR T Cells Compared To 50%")) %>%
+  tab_spanner(
+    label = "95% Credibility Interval (%)",
+    columns = c(CI.Lower,CI.Upper)
+  )%>%
+  # tab_spanner(
+  #   label = "Genotype Comparisons",
+  #   columns = c(Comp2,Comp1)
+  # )%>%
+  cols_move_to_start(
+    columns = c(ContrGroup,InjWeeks)
+  )%>%
+  #cols_hide(columns=c(FullGroupRef,FullGroupContr))%>%
+  cols_label(CI.Lower = "Lower Bound",
+             CI.Upper = "Upper Bound",
+             Evid.Ratio = "Evidence Ratio",
+             Evid.Strength = "Strength of Evidence",
+             ContrGroup = "Group",
+             Estimate = html("Difference"),
+             InjWeeks = "Weeks Post-Injection")%>%
+  fmt_number(
+    columns = c(Estimate,CI.Lower,CI.Upper,Evid.Ratio),
+    decimals = 1,
+    use_seps = TRUE
+  ) %>%
+  fmt_number(
+    columns = c(Evid.Ratio),
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  # data_color( 
+  #   columns = c(RefGroup), 
+  #   colors = scales::col_factor( 
+  #     palette = GroupPalette,
+  #     domain = levels(weekly_monitoring$FullGroup)
+  #   )) %>%
+  # data_color(
+  #   columns = c(ContrGroup),
+  #   colors = scales::col_factor(
+  #     palette = GroupPalette,
+  #     domain =  levels(weekly_monitoring$FullGroup)
+#   )) %>%
+tab_source_note(md("Relates to Figure 3J.")) %>%
+  tab_style(
+    locations = cells_column_labels(columns = everything()),
+    style     = list(
+      cell_borders(sides = "bottom", weight = px(3)),
+      cell_text(weight = "bold")
+    )
+  ) %>%
+  tab_style(
+    locations = cells_title(groups = "title"),
+    style     = list(
+      cell_text(weight = "bold", size = 24)
+    )
+  ) %>%
+  tab_options(
+    table.font.style = "Arial",
+    table.font.color = "black"
+  )
+SuppTab13
+SuppTab13 %>% gtsave("SuppTab13.docx")
